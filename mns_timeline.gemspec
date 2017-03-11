@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
   s.name = 'mns_timeline'
-  s.version = '0.1.0'
+  s.version = '0.1.1'
   s.summary = 'Subscribes to the SPS topic *timeline/add*, fetches the topic, message + id and posts it to the timeline feed'
   s.authors = ['James Robertson']
   s.files = Dir['lib/mns_timeline.rb']

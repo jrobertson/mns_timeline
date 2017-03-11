@@ -42,26 +42,25 @@ class MNSTimeline < SPSSub
     topic, id = msg.split('/').values_at 0, -1            
     url_base = @options[:url_base]
     fileid = Time.at(id.to_i).strftime("%Y/%b/%d/").downcase + id + '/index.xml'
-
+    
     url = "%s%s/%s" % [url_base, topic, fileid]
     kvx = Kvx.new url
-    msg = kvx.body[:description]
     
-    add_notice(topic, msg, id)    
+    add_notice(kvx.body.clone.merge(topic: topic), id)    
 
   end
 
-  def add_notice(topic, msg, id)
+  def add_notice(h, id)
 
     timeline_dir = File.join(@filepath, @timeline)
     notices = DailyNotices.new timeline_dir, 
         @options.merge(identifier: @timeline, title: @timeline.capitalize)
 
-    return_status = notices.add({description: msg, topic: topic}, id: id)
+    return_status = notices.add(h, id: id)
     
     return if return_status == :duplicate
 
-    dbfilename = File.join(timeline_dir, topic + '.db')
+    dbfilename = File.join(timeline_dir, h[:topic] + '.db')
             
     if File.exists? dbfilename then
 
@@ -81,7 +80,7 @@ SQL
     end   
 
     db.execute("INSERT INTO notices (id, message) 
-            VALUES (?, ?)", [id, msg])    
+            VALUES (?, ?)", [id, msg=h[:description]])    
     sleep 1.5
     
   end
