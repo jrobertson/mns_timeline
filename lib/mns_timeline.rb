@@ -45,7 +45,7 @@ class MNSTimeline < SPSSub
     
     url = "%s%s/%s" % [url_base, topic, fileid]
     kvx = Kvx.new url
-    
+
     add_notice(kvx.body.clone.merge(topic: topic), id)    
 
   end
@@ -53,10 +53,11 @@ class MNSTimeline < SPSSub
   def add_notice(h, id)
 
     timeline_dir = File.join(@filepath, @timeline)
+
     notices = DailyNotices.new timeline_dir, 
         @options.merge(identifier: @timeline, title: @timeline.capitalize)
 
-    return_status = notices.add(h, id: id)
+    return_status = notices.add(item: h, id: id)
     
     return if return_status == :duplicate
 
