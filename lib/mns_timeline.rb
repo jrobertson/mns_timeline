@@ -4,14 +4,15 @@
 
 
 require 'sps-sub'
-require "sqlite3"
 require 'fileutils'
 require 'daily_notices'
+require 'recordx_sqlite'
 
 
 class MNSTimeline < SPSSub
 
-  def initialize(timeline: 'notices', host: 'sps', port: 59000, dir: '.', options: {})
+  def initialize(timeline: 'notices', host: 'sps', port: 59000, 
+                 dir: '.', options: {})
     
     # note: a valid url_base must be provided
     
@@ -24,8 +25,25 @@ class MNSTimeline < SPSSub
     }.merge(options)
 
     super(host: host, port: port)
-    @filepath = dir
-    @timeline = timeline
+    
+    timeline_dir = File.join(dir, timeline)
+
+    @notices = DailyNotices.new timeline_dir, 
+        @options.merge(identifier: timeline, title: timeline.capitalize)
+    
+    dbfilename = File.join(timeline_dir, 'timeline.db')
+    
+    table = {
+      notices: {
+        id: 0, 
+        date: Date.today,
+        topic: '',
+        title: '', 
+        description: '',
+        link: ''
+      }
+    }
+    @rxnotices = RecordxSqlite.new(dbfilename, table: table)
 
   end
 
@@ -37,52 +55,38 @@ class MNSTimeline < SPSSub
 
   def ontopic(timeline_topic, msg)
 
-    puts "%s: %s %s"  % [timeline_topic, Time.now.to_s, msg.inspect]
+    puts "%s %s: %s"  % [Time.now.to_s, timeline_topic, msg.inspect]
           
     topic, id = msg.split('/').values_at 0, -1            
+
     url_base = @options[:url_base]
-    fileid = Time.at(id.to_i).strftime("%Y/%b/%d/").downcase + id + '/index.xml'
+    fileid = Time.at(id.to_i)
+      .strftime("%Y/%b/%-d/").downcase + id + '/index.xml'
     
     url = "%s%s/%s" % [url_base, topic, fileid]
+
     kvx = Kvx.new url
 
-    add_notice(kvx.body.clone.merge(topic: topic), id)    
+    add_notice(kvx.body.clone.merge(topic: topic), id, topic)
 
   end
 
-  def add_notice(h, id)
+  def add_notice(h, id, topic)
 
-    timeline_dir = File.join(@filepath, @timeline)
-
-    notices = DailyNotices.new timeline_dir, 
-        @options.merge(identifier: @timeline, title: @timeline.capitalize)
-
-    return_status = notices.add(item: h, id: id)
+    return_status = @notices.add(item: h, id: id)
     
     return if return_status == :duplicate
-
-    dbfilename = File.join(timeline_dir, h[:topic] + '.db')
+    
+    record = {
+      id: id,
+      date: Time.at(id.to_i).to_s,
+      topic: topic,
+      title: h[:title],
+      description: h[:description],
+      link: h[:link]      
+    }
             
-    if File.exists? dbfilename then
-
-      db = SQLite3::Database.new dbfilename   
-      
-    else
-
-      db = SQLite3::Database.new dbfilename   
-      
-db.execute <<-SQL
-  create table notices (
-    ID INT PRIMARY KEY     NOT NULL,
-    MESSAGE TEXT
-  );
-SQL
-            
-    end   
-
-    db.execute("INSERT INTO notices (id, message) 
-            VALUES (?, ?)", [id, msg=h[:description]])    
-    sleep 1.5
+    @rxnotices.create record
     
   end
 
